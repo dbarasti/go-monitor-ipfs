@@ -108,7 +108,7 @@ func RunMonitor(wg *sync.WaitGroup) {
 		}
 	}()
 
-	time.Sleep(time.Duration(sampleTime) * time.Second)
+	time.Sleep(time.Duration(sampleTime) * time.Minute)
 	ticker.Stop()
 	done <- true
 	writeToCsv(&data)

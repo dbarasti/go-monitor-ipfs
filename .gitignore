@@ -2,6 +2,12 @@
 # Created by https://www.gitignore.io/api/go,images,visualstudio
 # Edit at https://www.gitignore.io/?templates=go,images,visualstudio
 
+#env
+.env
+
+#output
+*.csv
+
 ### Go ###
 # Binaries for programs and plugins
 *.exe

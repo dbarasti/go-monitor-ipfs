@@ -1,4 +1,4 @@
-# Go Monitor ipfs
+# Go Monitor IPFS
 
 Application to monitor and create reports with plots regarding several metrics of an IPFS node. 
 

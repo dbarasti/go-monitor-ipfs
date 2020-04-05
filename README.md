@@ -1,7 +1,7 @@
 # ipfs-monitoring
-Project to monitor the state and particular metrics of a IPFS node. 
+Application to monitor particular metrics of a IPFS node. 
 
-Work is in progress
+This is a fresh work is in progress. A proper README will be soon available
 
 
 ## requirements

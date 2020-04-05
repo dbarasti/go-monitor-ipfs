@@ -1,6 +1,7 @@
 # Go Monitor IPFS
 
-Application to monitor and create reports with plots regarding several metrics of an IPFS node. 
+Application to monitor and create reports with plots regarding several metrics of an IPFS node.  
+*More details about available features will be soon released*
 
 ## Getting Started
 

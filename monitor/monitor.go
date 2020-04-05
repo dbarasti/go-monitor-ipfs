@@ -50,7 +50,7 @@ func main() {
 		log.Fatalf("Error loading .env file")
 	}
 	//extract in function
-	sampleFrequence, err := strconv.ParseInt(os.Getenv("SAMPLE_FREQUENCE_SEC"), 10, 64)
+	sampleFrequency, err := strconv.ParseInt(os.Getenv("SAMPLE_FREQUENCY_SEC"), 10, 64)
 	if err != nil {
 		panic(err)
 	}
@@ -62,7 +62,7 @@ func main() {
 
 	sh := shell.NewShell(os.Getenv("IPFS_SERVER_PORT"))
 
-	ticker := time.NewTicker(time.Duration(sampleFrequence) * time.Second) //ticker will have a channel C inside it
+	ticker := time.NewTicker(time.Duration(sampleFrequency) * time.Second) //ticker will have a channel C inside it
 	defer ticker.Stop()                                                    //ticker will stop before the main func exits
 	done := make(chan bool)                                                //creates the "done" channel
 	go func() {                                                            //writes true in the channel after x time to stop the execution of the ticker

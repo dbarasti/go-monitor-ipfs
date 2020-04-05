@@ -32,52 +32,55 @@ func (i *bwInfo) ToArray() []string {
 	return arrayData
 }
 
-func cleanBwRequest(r *http.Response) bwInfo {
+func cleanBwRequest(r *http.Response) (bwInfo, error) {
 	b, err := ioutil.ReadAll(r.Body)
 	defer r.Body.Close()
 	if err != nil {
-		panic(err)
+		log.Print("[BWMONITOR] Cannot read request body", err)
+		return bwInfo{}, err
 	}
-
 	// Unmarshal
 	var msg bwInfo
 	err = json.Unmarshal(b, &msg)
 	if err != nil {
 		panic(err)
 	}
-	return msg
+	return msg, nil
 }
 
-//SampleBandwidth uses ipfs http API to retrieve current information about bandwidth usage
-func sampleBandwidth() bwInfo {
+//sampleBandwidth uses ipfs http API to retrieve information about current bandwidth usage
+func sampleBandwidth() (bwInfo, error) {
 	ipfsServer := os.Getenv("IPFS_SERVER_PORT")
 	if ipfsServer == "" {
-		fmt.Fprintf(os.Stderr, "error: undefined variable IPFS_SERVER_PORT in environment")
-		os.Exit(1)
+		log.Fatal("[BWMONITOR] error: undefined variable IPFS_SERVER_PORT in environment")
 	}
 	r, err := http.Get("http://" + ipfsServer + "/api/v0/stats/bw")
 	if err != nil {
-		panic(err)
+		return bwInfo{}, err
 	}
-	msg := cleanBwRequest(r)
-	fmt.Println(msg)
-	return msg
+	bwData, err := cleanBwRequest(r)
+	return bwData, err
 }
 
 func writeToCsv(data *[]bwInfo) error {
 	file, err := os.Create("result.csv")
-	checkError("Cannot create file", err)
+	if err != nil {
+		return err
+	}
+
 	defer file.Close()
 	writer := csv.NewWriter(file)
 	defer writer.Flush()
 	for _, value := range *data {
 		err := writer.Write(value.ToArray())
-		checkError("Cannot write to file", err)
+		if err != nil {
+			log.Print("[BWMONITOR] warning: cannot write value to file:", err)
+		}
 	}
 	return nil
 }
 
-func checkError(message string, err error) {
+func checkFatalError(message string, err error) {
 	if err != nil {
 		log.Fatal(message, err)
 	}
@@ -85,15 +88,17 @@ func checkError(message string, err error) {
 
 //RunMonitor starts monitoring the bandwidth at a specific rate then writes data in a csv file
 func RunMonitor(wg *sync.WaitGroup) {
+	log.Print("[BWMONITOR] Starting bwmonitor")
+	defer log.Print("[BWMONITOR] end of monitoring")
 	defer wg.Done()
 	err := godotenv.Load(".env")
-	checkError("Error loading .env file", err)
-	sampleFrequence, err := strconv.ParseInt(os.Getenv("SAMPLE_FREQUENCE_SEC"), 10, 64)
-	checkError("SAMPLE_FREQUENCE_SEC not found in .env file", err)
+	checkFatalError("Error loading .env file", err)
+	sampleFrequency, err := strconv.ParseInt(os.Getenv("SAMPLE_FREQUENCY_SEC"), 10, 64)
+	checkFatalError("SAMPLE_FREQUENCY_SEC not found in .env file:", err)
 	sampleTime, err := strconv.ParseInt(os.Getenv("SAMPLE_TIME_MIN"), 10, 64)
-	checkError("SAMPLE_TIME_MIN not found in .env file", err)
-
-	ticker := time.NewTicker(time.Duration(sampleFrequence) * time.Second)
+	checkFatalError("SAMPLE_TIME_MIN not found in .env file:", err)
+	log.Print("[BWMONITOR] End scheduled for ", time.Now().Add(time.Minute*time.Duration(sampleTime)).Format("2 Jan 2006 15:04"))
+	ticker := time.NewTicker(time.Duration(sampleFrequency) * time.Second)
 	done := make(chan bool)
 	var data []bwInfo
 	go func() {
@@ -102,8 +107,13 @@ func RunMonitor(wg *sync.WaitGroup) {
 			case <-done:
 				return
 			case t := <-ticker.C:
-				fmt.Println("Sample at", t.Format("03:04:05 PM"))
-				data = append(data, sampleBandwidth())
+				if bwData, err := sampleBandwidth(); err == nil {
+					data = append(data, bwData)
+					//log.Print("[BWMONITOR] BW data:", bwData)
+					fmt.Println("Sample at", t.Format("03:04:05 PM"), bwData)
+				} else {
+					log.Print("[BWMONITOR] Error during request for bw stats:", err)
+				}
 			}
 		}
 	}()
@@ -111,6 +121,8 @@ func RunMonitor(wg *sync.WaitGroup) {
 	time.Sleep(time.Duration(sampleTime) * time.Minute)
 	ticker.Stop()
 	done <- true
-	writeToCsv(&data)
-	fmt.Println("bw monitoring stopped")
+	err = writeToCsv(&data)
+	if err != nil {
+		log.Print("[BWMONITOR] error while writing data to file")
+	}
 }

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"ipfs_monitoring/bwmonitor"
 	"ipfs_monitoring/swarmmonitor"
 	"log"
 	"os"
@@ -13,9 +14,9 @@ func main() {
 	log.Print("[MAIN] Starting execution")
 
 	var wg sync.WaitGroup
-	wg.Add(1)
+	wg.Add(2)
 	//wg.Add(1)
-	//go bwmonitor.RunMonitor(&wg)
+	go bwmonitor.RunMonitor(&wg)
 	go swarmmonitor.RunMonitor(&wg)
 	wg.Wait()
 

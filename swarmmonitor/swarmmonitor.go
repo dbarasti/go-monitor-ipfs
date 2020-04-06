@@ -2,6 +2,7 @@ package swarmmonitor
 
 import (
 	"context"
+	"encoding/csv"
 	"fmt"
 	"log"
 	"os"
@@ -27,6 +28,13 @@ type SampleInfo struct {
 	PeersNumber int
 }
 
+func (i *SampleInfo) ToArray() []string {
+	var arrayData []string
+	arrayData = append(arrayData, fmt.Sprintf("%s", i.Timestamp))
+	arrayData = append(arrayData, fmt.Sprintf("%d", i.PeersNumber))
+	return arrayData
+}
+
 type PeerInfo struct {
 	Id        string
 	Ip        string
@@ -34,6 +42,53 @@ type PeerInfo struct {
 	LastSeen  time.Time
 	Updated   bool
 	Location  string //Country Name
+}
+
+func (i *PeerInfo) ToArray() []string {
+	var arrayData []string
+	arrayData = append(arrayData, fmt.Sprintf("%s", i.Id))
+	arrayData = append(arrayData, fmt.Sprintf("%s", i.Ip))
+	arrayData = append(arrayData, fmt.Sprintf("%s", i.FirstSeen))
+	arrayData = append(arrayData, fmt.Sprintf("%s", i.LastSeen))
+	arrayData = append(arrayData, fmt.Sprintf("%v", i.Updated))
+	arrayData = append(arrayData, fmt.Sprintf("%s", i.Location))
+	return arrayData
+}
+
+func writeConnectionsToCsv(pastConnections []*PeerInfo) error {
+	file, err := os.Create("connections-info.csv")
+	if err != nil {
+		return err
+	}
+
+	defer file.Close()
+	writer := csv.NewWriter(file)
+	defer writer.Flush()
+	for _, value := range pastConnections {
+		err := writer.Write(value.ToArray())
+		if err != nil {
+			log.Print("[SWARM_MONITOR] warning: cannot write value to file:", err)
+		}
+	}
+	return nil
+}
+
+func writeSamplesInfoToCsv(samplesInfo []SampleInfo) error {
+	file, err := os.Create("samples-info.csv")
+	if err != nil {
+		return err
+	}
+
+	defer file.Close()
+	writer := csv.NewWriter(file)
+	defer writer.Flush()
+	for _, value := range samplesInfo {
+		err := writer.Write(value.ToArray())
+		if err != nil {
+			log.Print("[SWARM_MONITOR] warning: cannot write value to file:", err)
+		}
+	}
+	return nil
 }
 
 func plotData(collectedData plotter.XYs) {
@@ -76,6 +131,8 @@ func RunMonitor(wg *sync.WaitGroup) {
 	done := make(chan bool)                                                //creates the "done" channel
 
 	activePeers := make(map[string]*PeerInfo)
+	pastConnections := make([]*PeerInfo, 0)
+	samplesInfo := make([]SampleInfo, 0)
 	go func() { //writes true in the channel after x time to stop the execution of the ticker
 		for {
 			select { //select lets a routine wait on multiple communication operations
@@ -86,49 +143,78 @@ func RunMonitor(wg *sync.WaitGroup) {
 				if err != nil {
 					log.Print("[SWARM_MONITOR] Error while getting swarm peers: ", err)
 				}
-				for _, peerInfo := range swarmInfo.Peers {
-					handleSample(t, peerInfo, activePeers)
+				ipLookupJobs := make(chan *PeerInfo)
+				//create multiple workers
+				for i := 0; i < 10; i++ {
+					go findIPLocation(ipLookupJobs, done)
 				}
-				//fmt.Println("[SWARM_MONITOR]", len(swarmInfo.Peers), "peers")
 
-				//collectedData = append(collectedData, plotter.XY{float64(time.Now().Unix()), float64(len(swarmInfo.Peers))})
-				//{strconv.ParseFloat(t.String(), 64), strconv.ParseFloat(len(swarmInfo.Peers), 64)}
+				for _, peerInfo := range swarmInfo.Peers {
+					handleSample(t, peerInfo, activePeers, ipLookupJobs)
+				}
+				pastConnections = cleanActiveSwarms(activePeers, pastConnections)
+				samplesInfo = append(samplesInfo, SampleInfo{
+					Timestamp:   t,
+					PeersNumber: len(swarmInfo.Peers),
+				})
+				if err = writeConnectionsToCsv(pastConnections); err != nil {
+					log.Print("[SWARM_MONITOR] error while writing data to file")
+				}
+				if err = writeSamplesInfoToCsv(samplesInfo); err != nil {
+					log.Print("[SWARM_MONITOR] error while writing data to file")
+				}
 			}
 		}
 	}()
 
 	time.Sleep(time.Duration(sampleTime) * time.Minute)
 	done <- true
+	//todo move all data in activePeers into pastConnections
 	//plotData(collectedData)
 
 }
 
-func handleSample(t time.Time, peerInfo shell.SwarmConnInfo, active map[string]*PeerInfo) {
-	peer, ok := active[peerInfo.Peer]
+func cleanActiveSwarms(peers map[string]*PeerInfo, pastConnections []*PeerInfo) []*PeerInfo {
+	for id, peer := range peers {
+		if peer.Updated == false {
+			pastConnections = append(pastConnections, peer)
+			delete(peers, id)
+		}
+		peer.Updated = false
+	}
+	return pastConnections
+}
+
+func handleSample(t time.Time, peerInfo shell.SwarmConnInfo, activeSwarm map[string]*PeerInfo, jobs chan *PeerInfo) {
+	peer, ok := activeSwarm[peerInfo.Peer]
 	if ok == true {
 		peer.LastSeen = t
 		peer.Updated = true
 	} else {
 		ip := strings.Split(peerInfo.Addr, "/")[2]
-		active[peerInfo.Peer] = &PeerInfo{peerInfo.Peer, ip, t, t, true, ""}
-		ipLocation := findIpLocation(ip)
-		active[peerInfo.Peer].Location = ipLocation
+		activeSwarm[peerInfo.Peer] = &PeerInfo{peerInfo.Peer, ip, t, t, true, ""}
+		jobs <- activeSwarm[peerInfo.Peer]
 	}
 }
 
-//warning!! serve rendere asincrona la ricerca dell'ip altrimenti l'app si blocca qui per molto tempo durante il primo sampling
-func findIpLocation(ip string) string {
-	fmt.Println("[SWARM_MONITOR] finding location of", ip)
-	if err := ipstack.Init(os.Getenv("IPSTACK_KEY")); err != nil {
-		log.Print("[SWARM_MONITOR] IPSTACK_KEY not found in .env file:", err)
-		return ""
-	}
-	if res, err := ipstack.IP(ip); err == nil {
-		fmt.Println("[SWARM_MONITOR] location of", ip, ":", res.CountryCode)
-		return res.CountryCode
-	} else {
-		log.Print("[SWARM_MONITOR] Error finding location for ", ip, ":", err)
-		return ""
+func findIPLocation(jobs chan *PeerInfo, done chan bool) {
+	for {
+		select {
+		case <-done:
+			close(jobs)
+			return
+		case job := <-jobs: //throws seg error at the end
+			fmt.Println("[SWARM_MONITOR] finding location of", job.Ip)
+			if err := ipstack.Init(os.Getenv("IPSTACK_KEY")); err != nil {
+				log.Print("[SWARM_MONITOR] IPSTACK_KEY not found in .env file:", err)
+			}
+			if res, err := ipstack.IP(job.Ip); err == nil {
+				fmt.Println("[SWARM_MONITOR] location of", job.Ip, ":", res.CountryCode)
+				job.Location = res.CountryCode
+			} else {
+				log.Print("[SWARM_MONITOR] Error finding location for ", job.Ip, ":", err)
+			}
+		}
 	}
 }
 

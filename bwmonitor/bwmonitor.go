@@ -63,7 +63,7 @@ func sampleBandwidth() (bwInfo, error) {
 }
 
 func writeToCsv(data *[]bwInfo) error {
-	file, err := os.Create("result.csv")
+	file, err := os.Create("bw-info.csv")
 	if err != nil {
 		return err
 	}

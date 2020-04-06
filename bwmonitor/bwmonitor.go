@@ -86,19 +86,21 @@ func checkFatalError(message string, err error) {
 	}
 }
 
-//RunMonitor starts monitoring the bandwidth at a specific rate then writes data in a csv file
+//RunMonitor starts monitoring the bandwidth at a specific rate. Then writes data in a csv file
 func RunMonitor(wg *sync.WaitGroup) {
 	log.Print("[BWMONITOR] Starting bwmonitor")
 	defer log.Print("[BWMONITOR] end of monitoring")
 	defer wg.Done()
 	err := godotenv.Load(".env")
-	checkFatalError("Error loading .env file", err)
+	checkFatalError("[BWMONITOR] Error loading .env file", err)
 	sampleFrequency, err := strconv.ParseInt(os.Getenv("SAMPLE_FREQUENCY_SEC"), 10, 64)
-	checkFatalError("SAMPLE_FREQUENCY_SEC not found in .env file:", err)
+	checkFatalError("[BWMONITOR] SAMPLE_FREQUENCY_SEC not found in .env file:", err)
 	sampleTime, err := strconv.ParseInt(os.Getenv("SAMPLE_TIME_MIN"), 10, 64)
-	checkFatalError("SAMPLE_TIME_MIN not found in .env file:", err)
+	checkFatalError("[BWMONITOR] SAMPLE_TIME_MIN not found in .env file:", err)
 	log.Print("[BWMONITOR] End scheduled for ", time.Now().Add(time.Minute*time.Duration(sampleTime)).Format("2 Jan 2006 15:04"))
+
 	ticker := time.NewTicker(time.Duration(sampleFrequency) * time.Second)
+	defer ticker.Stop()
 	done := make(chan bool)
 	var data []bwInfo
 	go func() {
@@ -119,7 +121,7 @@ func RunMonitor(wg *sync.WaitGroup) {
 	}()
 
 	time.Sleep(time.Duration(sampleTime) * time.Minute)
-	ticker.Stop()
+
 	done <- true
 	err = writeToCsv(&data)
 	if err != nil {

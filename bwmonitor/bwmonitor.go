@@ -61,7 +61,7 @@ func sampleBandwidth(t time.Time) (bwInfo, error) {
 		return bwInfo{}, err
 	}
 	bwData, err := cleanBwRequest(r)
-	bwData.Time = time.Now()
+	bwData.Time = t.Round(1 * time.Second)
 	return bwData, err
 }
 

@@ -148,11 +148,11 @@ func RunMonitor(wg *sync.WaitGroup) {
 				}
 
 				for _, peerInfo := range swarmInfo.Peers {
-					handleSample(t, peerInfo, activePeers, ipLookupJobs)
+					handleSample(t.Round(1*time.Second), peerInfo, activePeers, ipLookupJobs)
 				}
 				cleanActiveSwarms(activePeers, &pastConnections)
 				samplesInfo = append(samplesInfo, SampleInfo{
-					Timestamp:   t,
+					Timestamp:   t.Round(1 * time.Second),
 					PeersNumber: len(swarmInfo.Peers),
 				})
 			}
@@ -169,6 +169,8 @@ func RunMonitor(wg *sync.WaitGroup) {
 		log.Print("[SWARM_MONITOR] error while writing data to file")
 	}
 	//todo move all data in activePeers into pastConnections
+	log.Printf("[SWARM_MONITOR] Active connections size: %d", len(activePeers))
+	log.Printf("[SWARM_MONITOR] Past connections size: %d", len(pastConnections))
 	//plotData(collectedData)
 
 }

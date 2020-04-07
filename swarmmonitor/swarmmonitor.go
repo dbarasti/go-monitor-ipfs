@@ -55,7 +55,7 @@ func (i *PeerInfo) ToArray() []string {
 	return arrayData
 }
 
-func writeConnectionsToCsv(pastConnections []*PeerInfo) error {
+func writeConnectionsToCsv(pastConnections map[string][]*PeerInfo) error {
 	file, err := os.Create("connections-info.csv")
 	if err != nil {
 		return err
@@ -64,11 +64,14 @@ func writeConnectionsToCsv(pastConnections []*PeerInfo) error {
 	defer file.Close()
 	writer := csv.NewWriter(file)
 	defer writer.Flush()
-	for _, value := range pastConnections {
-		err := writer.Write(append(value.ToArray(), fmt.Sprintf("%s", value.LastSeen.Sub(value.FirstSeen))))
-		if err != nil {
-			log.Print("[SWARM_MONITOR] warning: cannot write value to file:", err)
+	for id, peerConnections := range pastConnections {
+		for _, peerConnection := range peerConnections {
+			err := writer.Write(append(peerConnection.ToArray(), fmt.Sprintf("%s", peerConnection.LastSeen.Sub(peerConnection.FirstSeen))))
+			if err != nil {
+				log.Print("[SWARM_MONITOR] warning: cannot write value to file:", err)
+			}
 		}
+		//log.Printf("[SWARM_MONITOR] Connections of %s: %v", id, peerConnections)
 	}
 	return nil
 }
@@ -125,7 +128,7 @@ func RunMonitor(wg *sync.WaitGroup) {
 	done := make(chan bool)                                                //creates the "done" channel
 
 	activePeers := make(map[string]*PeerInfo)
-	pastConnections := make([]*PeerInfo, 0)
+	pastConnections := make(map[string][]*PeerInfo)
 	samplesInfo := make([]SampleInfo, 0)
 	go func() { //writes true in the channel after x time to stop the execution of the ticker
 		for {
@@ -146,23 +149,24 @@ func RunMonitor(wg *sync.WaitGroup) {
 				for _, peerInfo := range swarmInfo.Peers {
 					handleSample(t, peerInfo, activePeers, ipLookupJobs)
 				}
-				pastConnections = cleanActiveSwarms(activePeers, pastConnections)
+				cleanActiveSwarms(activePeers, &pastConnections)
 				samplesInfo = append(samplesInfo, SampleInfo{
 					Timestamp:   t,
 					PeersNumber: len(swarmInfo.Peers),
 				})
-				if err = writeConnectionsToCsv(pastConnections); err != nil {
-					log.Print("[SWARM_MONITOR] error while writing data to file")
-				}
-				if err = writeSamplesInfoToCsv(samplesInfo); err != nil {
-					log.Print("[SWARM_MONITOR] error while writing data to file")
-				}
 			}
 		}
 	}()
 
 	time.Sleep(time.Duration(measurementTime) * time.Minute)
 	done <- true
+
+	if err := writeConnectionsToCsv(pastConnections); err != nil {
+		log.Print("[SWARM_MONITOR] error while writing data to file")
+	}
+	if err := writeSamplesInfoToCsv(samplesInfo); err != nil {
+		log.Print("[SWARM_MONITOR] error while writing data to file")
+	}
 	//todo move all data in activePeers into pastConnections
 	//plotData(collectedData)
 
@@ -179,15 +183,14 @@ func getSamplingVariables() (int64, int64) {
 	return sampleFrequency, measurementTime
 }
 
-func cleanActiveSwarms(peers map[string]*PeerInfo, pastConnections []*PeerInfo) []*PeerInfo {
-	for id, peer := range peers {
+func cleanActiveSwarms(activePeers map[string]*PeerInfo, pastConnections *map[string][]*PeerInfo) {
+	for id, peer := range activePeers {
 		if peer.Updated == false {
-			pastConnections = append(pastConnections, peer)
-			delete(peers, id)
+			(*pastConnections)[id] = append((*pastConnections)[id], peer)
+			delete(activePeers, id)
 		}
 		peer.Updated = false
 	}
-	return pastConnections
 }
 
 func handleSample(t time.Time, peerInfo shell.SwarmConnInfo, activeSwarm map[string]*PeerInfo, jobs chan *PeerInfo) {

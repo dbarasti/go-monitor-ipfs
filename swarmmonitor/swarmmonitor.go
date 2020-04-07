@@ -117,13 +117,7 @@ func RunMonitor(wg *sync.WaitGroup) {
 	log.Print("[SWARM_MONITOR] Starting bwmonitor")
 	defer log.Print("[SWARM_MONITOR] End of monitoring")
 	defer wg.Done()
-	err := godotenv.Load(".env")
-	checkFatalError("[SWARM_MONITOR] Error loading .env file", err)
-	sampleFrequency, err := strconv.ParseInt(os.Getenv("SAMPLE_FREQUENCY_SEC"), 10, 64)
-	checkFatalError("[SWARM_MONITOR] SAMPLE_FREQUENCY_SEC not found in .env file:", err)
-	sampleTime, err := strconv.ParseInt(os.Getenv("SAMPLE_TIME_MIN"), 10, 64)
-	checkFatalError("[SWARM_MONITOR] SAMPLE_TIME_MIN not found in .env file:", err)
-	log.Print("[SWARM_MONITOR] End scheduled for ", time.Now().Add(time.Minute*time.Duration(sampleTime)).Format("2 Jan 2006 15:04:05"))
+	sampleFrequency, measurementTime := getSamplingVariables()
 
 	sh := shell.NewShell(os.Getenv("IPFS_SERVER_PORT"))
 	ticker := time.NewTicker(time.Duration(sampleFrequency) * time.Second) //ticker will have a channel C inside it
@@ -167,11 +161,22 @@ func RunMonitor(wg *sync.WaitGroup) {
 		}
 	}()
 
-	time.Sleep(time.Duration(sampleTime) * time.Minute)
+	time.Sleep(time.Duration(measurementTime) * time.Minute)
 	done <- true
 	//todo move all data in activePeers into pastConnections
 	//plotData(collectedData)
 
+}
+
+func getSamplingVariables() (int64, int64) {
+	err := godotenv.Load(".env")
+	checkFatalError("[SWARM_MONITOR] Error loading .env file", err)
+	sampleFrequency, err := strconv.ParseInt(os.Getenv("SAMPLE_FREQUENCY_SEC"), 10, 64)
+	checkFatalError("[SWARM_MONITOR] SAMPLE_FREQUENCY_SEC not found in .env file:", err)
+	measurementTime, err := strconv.ParseInt(os.Getenv("SAMPLE_TIME_MIN"), 10, 64)
+	checkFatalError("[SWARM_MONITOR] SAMPLE_TIME_MIN not found in .env file:", err)
+	log.Print("[SWARM_MONITOR] End scheduled for ", time.Now().Add(time.Minute*time.Duration(measurementTime)).Format("2 Jan 2006 15:04:05"))
+	return sampleFrequency, measurementTime
 }
 
 func cleanActiveSwarms(peers map[string]*PeerInfo, pastConnections []*PeerInfo) []*PeerInfo {

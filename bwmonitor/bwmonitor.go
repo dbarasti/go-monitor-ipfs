@@ -16,6 +16,7 @@ import (
 )
 
 type bwInfo struct {
+	Time     time.Time
 	TotalIn  int64   `json:"TotalIn"`
 	TotalOut int64   `json:"TotalOut"`
 	RateIn   float64 `json:"RateIn"`
@@ -25,6 +26,7 @@ type bwInfo struct {
 //ToArray turns each field into a string and returns a slice of these strings that a csv.Writer will accept.
 func (i *bwInfo) ToArray() []string {
 	var arrayData []string
+	arrayData = append(arrayData, fmt.Sprintf("%s", i.Time.Format("2 Jan 2006 15:04:05")))
 	arrayData = append(arrayData, fmt.Sprintf("%d", i.TotalOut))
 	arrayData = append(arrayData, fmt.Sprintf("%d", i.TotalIn))
 	arrayData = append(arrayData, fmt.Sprintf("%f", i.RateIn))
@@ -59,6 +61,7 @@ func sampleBandwidth() (bwInfo, error) {
 		return bwInfo{}, err
 	}
 	bwData, err := cleanBwRequest(r)
+	bwData.Time = time.Now()
 	return bwData, err
 }
 
@@ -89,7 +92,7 @@ func checkFatalError(message string, err error) {
 //RunMonitor starts monitoring the bandwidth at a specific rate. Then writes data in a csv file
 func RunMonitor(wg *sync.WaitGroup) {
 	log.Print("[BWMONITOR] Starting bwmonitor")
-	defer log.Print("[BWMONITOR] end of monitoring")
+	defer log.Print("[BWMONITOR] End of monitoring")
 	defer wg.Done()
 	err := godotenv.Load(".env")
 	checkFatalError("[BWMONITOR] Error loading .env file", err)
@@ -97,7 +100,7 @@ func RunMonitor(wg *sync.WaitGroup) {
 	checkFatalError("[BWMONITOR] SAMPLE_FREQUENCY_SEC not found in .env file:", err)
 	sampleTime, err := strconv.ParseInt(os.Getenv("SAMPLE_TIME_MIN"), 10, 64)
 	checkFatalError("[BWMONITOR] SAMPLE_TIME_MIN not found in .env file:", err)
-	log.Print("[BWMONITOR] End scheduled for ", time.Now().Add(time.Minute*time.Duration(sampleTime)).Format("2 Jan 2006 15:04"))
+	log.Print("[BWMONITOR] End scheduled for ", time.Now().Add(time.Minute*time.Duration(sampleTime)).Format("2 Jan 2006 15:04:05"))
 
 	ticker := time.NewTicker(time.Duration(sampleFrequency) * time.Second)
 	defer ticker.Stop()

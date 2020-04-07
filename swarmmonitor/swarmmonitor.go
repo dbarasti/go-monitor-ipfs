@@ -30,7 +30,7 @@ type SampleInfo struct {
 
 func (i *SampleInfo) ToArray() []string {
 	var arrayData []string
-	arrayData = append(arrayData, fmt.Sprintf("%s", i.Timestamp))
+	arrayData = append(arrayData, fmt.Sprintf("%s", i.Timestamp.Format("2 Jan 2006 15:04:05")))
 	arrayData = append(arrayData, fmt.Sprintf("%d", i.PeersNumber))
 	return arrayData
 }
@@ -48,8 +48,8 @@ func (i *PeerInfo) ToArray() []string {
 	var arrayData []string
 	arrayData = append(arrayData, fmt.Sprintf("%s", i.Id))
 	arrayData = append(arrayData, fmt.Sprintf("%s", i.Ip))
-	arrayData = append(arrayData, fmt.Sprintf("%s", i.FirstSeen))
-	arrayData = append(arrayData, fmt.Sprintf("%s", i.LastSeen))
+	arrayData = append(arrayData, fmt.Sprintf("%s", i.FirstSeen.Format("2 Jan 2006 15:04:05")))
+	arrayData = append(arrayData, fmt.Sprintf("%s", i.LastSeen.Format("2 Jan 2006 15:04:05")))
 	arrayData = append(arrayData, fmt.Sprintf("%v", i.Updated))
 	arrayData = append(arrayData, fmt.Sprintf("%s", i.Location))
 	return arrayData
@@ -65,7 +65,7 @@ func writeConnectionsToCsv(pastConnections []*PeerInfo) error {
 	writer := csv.NewWriter(file)
 	defer writer.Flush()
 	for _, value := range pastConnections {
-		err := writer.Write(value.ToArray())
+		err := writer.Write(append(value.ToArray(), fmt.Sprintf("%s", value.LastSeen.Sub(value.FirstSeen))))
 		if err != nil {
 			log.Print("[SWARM_MONITOR] warning: cannot write value to file:", err)
 		}
@@ -115,7 +115,7 @@ func plotData(collectedData plotter.XYs) {
 //RunMonitor starts monitoring the swarm at a specific rate. Then writes data in a csv file
 func RunMonitor(wg *sync.WaitGroup) {
 	log.Print("[SWARM_MONITOR] Starting bwmonitor")
-	defer log.Print("[SWARM_MONITOR] end of monitoring")
+	defer log.Print("[SWARM_MONITOR] End of monitoring")
 	defer wg.Done()
 	err := godotenv.Load(".env")
 	checkFatalError("[SWARM_MONITOR] Error loading .env file", err)
@@ -123,7 +123,7 @@ func RunMonitor(wg *sync.WaitGroup) {
 	checkFatalError("[SWARM_MONITOR] SAMPLE_FREQUENCY_SEC not found in .env file:", err)
 	sampleTime, err := strconv.ParseInt(os.Getenv("SAMPLE_TIME_MIN"), 10, 64)
 	checkFatalError("[SWARM_MONITOR] SAMPLE_TIME_MIN not found in .env file:", err)
-	log.Print("[SWARM_MONITOR] End scheduled for ", time.Now().Add(time.Minute*time.Duration(sampleTime)).Format("2 Jan 2006 15:04"))
+	log.Print("[SWARM_MONITOR] End scheduled for ", time.Now().Add(time.Minute*time.Duration(sampleTime)).Format("2 Jan 2006 15:04:05"))
 
 	sh := shell.NewShell(os.Getenv("IPFS_SERVER_PORT"))
 	ticker := time.NewTicker(time.Duration(sampleFrequency) * time.Second) //ticker will have a channel C inside it
@@ -193,16 +193,13 @@ func handleSample(t time.Time, peerInfo shell.SwarmConnInfo, activeSwarm map[str
 	} else {
 		ip := strings.Split(peerInfo.Addr, "/")[2]
 		activeSwarm[peerInfo.Peer] = &PeerInfo{peerInfo.Peer, ip, t, t, true, ""}
-		jobs <- activeSwarm[peerInfo.Peer]
+		// todo temporary off: jobs <- activeSwarm[peerInfo.Peer]
 	}
 }
 
 func findIPLocation(jobs chan *PeerInfo, done chan bool) {
 	for {
 		select {
-		case <-done:
-			close(jobs)
-			return
 		case job := <-jobs: //throws seg error at the end
 			fmt.Println("[SWARM_MONITOR] finding location of", job.Ip)
 			if err := ipstack.Init(os.Getenv("IPSTACK_KEY")); err != nil {

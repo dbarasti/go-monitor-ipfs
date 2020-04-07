@@ -9,8 +9,8 @@ import (
 )
 
 func main() {
-	file := setupLog()
-	defer file.Close()
+	//todo uncomment file := setupLog()
+	// defer file.Close()
 	log.Print("[MAIN] Starting execution")
 
 	var wg sync.WaitGroup

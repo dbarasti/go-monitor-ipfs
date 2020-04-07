@@ -64,7 +64,7 @@ func writeConnectionsToCsv(pastConnections map[string][]*PeerInfo) error {
 	defer file.Close()
 	writer := csv.NewWriter(file)
 	defer writer.Flush()
-	for id, peerConnections := range pastConnections {
+	for _, peerConnections := range pastConnections {
 		for _, peerConnection := range peerConnections {
 			err := writer.Write(append(peerConnection.ToArray(), fmt.Sprintf("%s", peerConnection.LastSeen.Sub(peerConnection.FirstSeen))))
 			if err != nil {

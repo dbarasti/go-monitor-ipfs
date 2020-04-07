@@ -51,7 +51,7 @@ func cleanBwRequest(r *http.Response) (bwInfo, error) {
 }
 
 //sampleBandwidth uses ipfs http API to retrieve information about current bandwidth usage
-func sampleBandwidth() (bwInfo, error) {
+func sampleBandwidth(t time.Time) (bwInfo, error) {
 	ipfsServer := os.Getenv("IPFS_SERVER_PORT")
 	if ipfsServer == "" {
 		log.Fatal("[BWMONITOR] error: undefined variable IPFS_SERVER_PORT in environment")
@@ -94,13 +94,8 @@ func RunMonitor(wg *sync.WaitGroup) {
 	log.Print("[BWMONITOR] Starting bwmonitor")
 	defer log.Print("[BWMONITOR] End of monitoring")
 	defer wg.Done()
-	err := godotenv.Load(".env")
-	checkFatalError("[BWMONITOR] Error loading .env file", err)
-	sampleFrequency, err := strconv.ParseInt(os.Getenv("SAMPLE_FREQUENCY_SEC"), 10, 64)
-	checkFatalError("[BWMONITOR] SAMPLE_FREQUENCY_SEC not found in .env file:", err)
-	sampleTime, err := strconv.ParseInt(os.Getenv("SAMPLE_TIME_MIN"), 10, 64)
-	checkFatalError("[BWMONITOR] SAMPLE_TIME_MIN not found in .env file:", err)
-	log.Print("[BWMONITOR] End scheduled for ", time.Now().Add(time.Minute*time.Duration(sampleTime)).Format("2 Jan 2006 15:04:05"))
+	sampleFrequency, measurementTime := getSamplingVariables()
+	log.Print("[BWMONITOR] End scheduled for ", time.Now().Add(time.Minute*time.Duration(measurementTime)).Format("2 Jan 2006 15:04:05"))
 
 	ticker := time.NewTicker(time.Duration(sampleFrequency) * time.Second)
 	defer ticker.Stop()
@@ -112,10 +107,8 @@ func RunMonitor(wg *sync.WaitGroup) {
 			case <-done:
 				return
 			case t := <-ticker.C:
-				if bwData, err := sampleBandwidth(); err == nil {
+				if bwData, err := sampleBandwidth(t); err == nil {
 					data = append(data, bwData)
-					//log.Print("[BWMONITOR] BW data:", bwData)
-					fmt.Println("Sample at", t.Format("03:04:05 PM"), bwData)
 				} else {
 					log.Print("[BWMONITOR] Error during request for bw stats:", err)
 				}
@@ -123,11 +116,21 @@ func RunMonitor(wg *sync.WaitGroup) {
 		}
 	}()
 
-	time.Sleep(time.Duration(sampleTime) * time.Minute)
+	time.Sleep(time.Duration(measurementTime) * time.Minute)
 
 	done <- true
-	err = writeToCsv(&data)
+	err := writeToCsv(&data)
 	if err != nil {
 		log.Print("[BWMONITOR] error while writing data to file")
 	}
+}
+
+func getSamplingVariables() (int64, int64) {
+	err := godotenv.Load(".env")
+	checkFatalError("[SWARM_MONITOR] Error loading .env file", err)
+	sampleFrequency, err := strconv.ParseInt(os.Getenv("SAMPLE_FREQUENCY_SEC"), 10, 64)
+	checkFatalError("[SWARM_MONITOR] SAMPLE_FREQUENCY_SEC not found in .env file:", err)
+	measurementTime, err := strconv.ParseInt(os.Getenv("SAMPLE_TIME_MIN"), 10, 64)
+	checkFatalError("[SWARM_MONITOR] SAMPLE_TIME_MIN not found in .env file:", err)
+	return sampleFrequency, measurementTime
 }

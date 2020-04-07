@@ -121,6 +121,7 @@ func RunMonitor(wg *sync.WaitGroup) {
 	defer log.Print("[SWARM_MONITOR] End of monitoring")
 	defer wg.Done()
 	sampleFrequency, measurementTime := getSamplingVariables()
+	log.Print("[SWARM_MONITOR] End scheduled for ", time.Now().Add(time.Minute*time.Duration(measurementTime)).Format("2 Jan 2006 15:04:05"))
 
 	sh := shell.NewShell(os.Getenv("IPFS_SERVER_PORT"))
 	ticker := time.NewTicker(time.Duration(sampleFrequency) * time.Second) //ticker will have a channel C inside it
@@ -179,7 +180,6 @@ func getSamplingVariables() (int64, int64) {
 	checkFatalError("[SWARM_MONITOR] SAMPLE_FREQUENCY_SEC not found in .env file:", err)
 	measurementTime, err := strconv.ParseInt(os.Getenv("SAMPLE_TIME_MIN"), 10, 64)
 	checkFatalError("[SWARM_MONITOR] SAMPLE_TIME_MIN not found in .env file:", err)
-	log.Print("[SWARM_MONITOR] End scheduled for ", time.Now().Add(time.Minute*time.Duration(measurementTime)).Format("2 Jan 2006 15:04:05"))
 	return sampleFrequency, measurementTime
 }
 

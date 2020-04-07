@@ -11,6 +11,8 @@ These instructions will get you a copy of the project up and running on your loc
 
 * GO version >=1.13
 
+* The monitor uses [ipstack](https://ipstack.com/) for the location lookup of IP addresses. You'll need to provide in the ```.env``` file the API key retrieved after signin in to the service.  
+
 
 ### Installing
 
@@ -50,4 +52,6 @@ Please read [CONTRIBUTING.md](CONTRIBUTING) for details on the code of conduct, 
 This project is licensed under the GNU General Public License - see the [LICENSE.md](LICENSE) file for details
 
 ## Acknowledgments
-This project was started for an assignment of the course [Peer to Peer Systems and Blockchains](https://elearning.di.unipi.it/course/info.php?id=118&lang=it) at University of Pisa under the guide of [Prof. Laura Ricci](http://pages.di.unipi.it/ricci/)
+* This project was started for an assignment of the course [Peer to Peer Systems and Blockchains](https://elearning.di.unipi.it/course/info.php?id=118&lang=it) at University of Pisa under the guide of [Prof. Laura Ricci](http://pages.di.unipi.it/ricci/)
+
+* Thanks to [qioalice](https://github.com/qioalice) that made available a great wrapper for the ipstack http API. Check out the [repo](https://github.com/qioalice/ipstack)

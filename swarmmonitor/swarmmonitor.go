@@ -59,7 +59,7 @@ func ipInfoToArray(ipNfo *ipinfo.Info) []string {
 	return arr
 }
 
-var lock = sync.RWMutex{}
+var lock = &sync.RWMutex{}
 var ipDatabase = make(map[string]*ipinfo.Info)
 
 func writeConnectionsToCsv(pastConnections map[string][]*PeerInfo) error {
@@ -233,19 +233,16 @@ func findIPLocation(jobs chan *PeerInfo, ipDatabase map[string]*ipinfo.Info) {
 			ip, ok := ipDatabase[job.Ip]
 			lock.RUnlock()
 			if ok == false {
-				//log.Print("[SWARM_MONITOR] finding location of ", job.Ip)
 				if res, err := client.GetInfo(net.ParseIP(job.Ip)); err == nil { //todo measure time for request and sleep if too short
-					//log.Print("[SWARM_MONITOR] location of ", job.Ip, ":", res.Country)
 					job.Location = res.Country
-					lock.RLock()
+					lock.Lock()
 					ipDatabase[job.Ip] = res
-					lock.RUnlock()
+					lock.Unlock()
 				} else {
 					log.Print("[SWARM_MONITOR] Error finding location for ", job.Ip, ":", err)
 				}
 			} else {
 				job.Location = ip.Country
-				//log.Print("Information for ", job.Ip, " already present in DB")
 			}
 		}
 	}

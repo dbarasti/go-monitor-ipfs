@@ -166,7 +166,7 @@ func RunMonitor(wg *sync.WaitGroup) {
 	done <- true
 	closeActiveConnections(activePeers, pastConnections, ipLookupJobs)
 
-	time.Sleep(5 * time.Second)
+	time.Sleep(15 * time.Second)
 
 	if err := writeConnectionsToCsv(pastConnections); err != nil {
 		log.Print("[SWARM_MONITOR] error while writing data to file")
@@ -175,7 +175,6 @@ func RunMonitor(wg *sync.WaitGroup) {
 		log.Print("[SWARM_MONITOR] error while writing data to file")
 	}
 
-	//todo save data for ip
 	if err := writeIpInfoToCsv(ipDatabase); err != nil {
 		log.Print("[SWARM_MONITOR] error while writing data to file")
 	}
@@ -234,9 +233,9 @@ func findIPLocation(jobs chan *PeerInfo, ipDatabase map[string]*ipinfo.Info) {
 			ip, ok := ipDatabase[job.Ip]
 			lock.RUnlock()
 			if ok == false {
-				log.Print("[SWARM_MONITOR] finding location of ", job.Ip)
+				//log.Print("[SWARM_MONITOR] finding location of ", job.Ip)
 				if res, err := client.GetInfo(net.ParseIP(job.Ip)); err == nil { //todo measure time for request and sleep if too short
-					log.Print("[SWARM_MONITOR] location of ", job.Ip, ":", res.Country)
+					//log.Print("[SWARM_MONITOR] location of ", job.Ip, ":", res.Country)
 					job.Location = res.Country
 					lock.RLock()
 					ipDatabase[job.Ip] = res
@@ -246,7 +245,7 @@ func findIPLocation(jobs chan *PeerInfo, ipDatabase map[string]*ipinfo.Info) {
 				}
 			} else {
 				job.Location = ip.Country
-				log.Print("Information for ", job.Ip, " already present in DB")
+				//log.Print("Information for ", job.Ip, " already present in DB")
 			}
 		}
 	}

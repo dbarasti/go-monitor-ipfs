@@ -60,7 +60,7 @@ func ipInfoToArray(ipNfo *ipinfo.Info) []string {
 }
 
 var lock = &sync.RWMutex{}
-var ipDatabase = make(map[string]*ipinfo.Info)
+var ipCache = make(map[string]*ipinfo.Info)
 
 func writeConnectionsToCsv(pastConnections map[string][]*PeerInfo) error {
 	file, err := os.Create("connections-info.csv")
@@ -135,6 +135,11 @@ func RunMonitor(wg *sync.WaitGroup) {
 	samplesInfo := make([]SampleInfo, 0)
 	ipLookupJobs := make(chan *PeerInfo)
 
+	//create multiple workers
+	for i := 0; i < 10; i++ {
+		go findIPLocation(ipLookupJobs, ipCache)
+	}
+
 	go func() {
 		for {
 			select {
@@ -145,15 +150,10 @@ func RunMonitor(wg *sync.WaitGroup) {
 				if err != nil {
 					log.Print("[SWARM_MONITOR] Error while getting swarm peers: ", err)
 				}
-				//create multiple workers
-				for i := 0; i < 10; i++ {
-					go findIPLocation(ipLookupJobs, ipDatabase)
-				}
-
 				for _, peerInfo := range swarmInfo.Peers {
 					handleSample(t.Round(1*time.Second), peerInfo, activePeers)
 				}
-				cleanActiveSwarms(activePeers, pastConnections, ipLookupJobs)
+				cleanActiveSwarm(activePeers, pastConnections, ipLookupJobs)
 				samplesInfo = append(samplesInfo, SampleInfo{
 					Timestamp:   t.Round(1 * time.Second),
 					PeersNumber: len(swarmInfo.Peers),
@@ -175,7 +175,7 @@ func RunMonitor(wg *sync.WaitGroup) {
 		log.Print("[SWARM_MONITOR] error while writing data to file")
 	}
 
-	if err := writeIpInfoToCsv(ipDatabase); err != nil {
+	if err := writeIpInfoToCsv(ipCache); err != nil {
 		log.Print("[SWARM_MONITOR] error while writing data to file")
 	}
 }
@@ -199,7 +199,7 @@ func getSamplingVariables() (int64, int64) {
 	return sampleFrequency, measurementTime
 }
 
-func cleanActiveSwarms(activePeers map[string]*PeerInfo, pastConnections map[string][]*PeerInfo, jobs chan *PeerInfo) {
+func cleanActiveSwarm(activePeers map[string]*PeerInfo, pastConnections map[string][]*PeerInfo, jobs chan *PeerInfo) {
 	for id, peer := range activePeers {
 		if peer.Updated == false {
 			(pastConnections)[id] = append((pastConnections)[id], peer)
@@ -222,7 +222,7 @@ func handleSample(t time.Time, peerInfo shell.SwarmConnInfo, activeSwarm map[str
 }
 
 func findIPLocation(jobs chan *PeerInfo, ipDatabase map[string]*ipinfo.Info) {
-	authTransport := ipinfo.AuthTransport{Token: os.Getenv("IPSTACK_KEY")}
+	authTransport := ipinfo.AuthTransport{Token: os.Getenv("IPINFO_KEY")}
 	httpClient := authTransport.Client()
 	client := ipinfo.NewClient(httpClient)
 

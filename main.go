@@ -9,15 +9,16 @@ import (
 )
 
 func main() {
-	file := setupLog()
-	defer file.Close()
+	logFile := setupLog()
+	defer logFile.Close()
 	log.Print("[MAIN] Starting execution")
 
 	var wg sync.WaitGroup
 	wg.Add(2)
-	//wg.Add(1)
+
 	go bwmonitor.RunMonitor(&wg)
 	go swarmmonitor.RunMonitor(&wg)
+
 	wg.Wait()
 
 }
